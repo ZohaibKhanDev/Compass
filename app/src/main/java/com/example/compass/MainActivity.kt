@@ -25,8 +25,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
@@ -57,7 +59,7 @@ fun CompassApp() {
     })
 
     LaunchedEffect(currentDegree) {
-        smoothCurrentDegree = lowPassFilter(smoothCurrentDegree, currentDegree, 0.05f)
+        smoothCurrentDegree = lowPassFilter(smoothCurrentDegree, currentDegree, 0.02f)
     }
 
     Box(
@@ -71,6 +73,8 @@ fun CompassApp() {
 
 @Composable
 fun CompassScreen(currentDegree: Float) {
+    val correctedDegree = currentDegree
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -86,6 +90,7 @@ fun CompassScreen(currentDegree: Float) {
             val centerY = size.height / 2
             val radius = size.minDimension / 2
 
+
             drawCircle(
                 color = Color.LightGray,
                 radius = radius,
@@ -94,7 +99,7 @@ fun CompassScreen(currentDegree: Float) {
 
 
             for (degree in 0..359 step 5) {
-                val angleInRad = Math.toRadians(degree.toDouble() - currentDegree).toFloat()
+                val angleInRad = Math.toRadians(degree.toDouble() - correctedDegree).toFloat()
                 val lineLength = when {
                     degree % 90 == 0 -> 0.2f
                     degree % 30 == 0 -> 0.15f
@@ -107,49 +112,22 @@ fun CompassScreen(currentDegree: Float) {
                 val endY = centerY + radius * sin(angleInRad)
 
                 drawLine(
-                    color = if (degree in (currentDegree.toInt() - 2)..(currentDegree.toInt() + 2)) Color.Red else Color.LightGray,
+                    color = if (degree == correctedDegree.toInt()) Color.Red else Color.LightGray,
                     start = Offset(startX, startY),
                     end = Offset(endX, endY),
                     strokeWidth = if (degree % 30 == 0) 2.dp.toPx() else 1.dp.toPx()
                 )
 
                 if (degree % 30 == 0) {
-                    val textRadius = radius * 0.7f
-                    val textX = centerX + (textRadius * cos(angleInRad))
-                    val textY = centerY + (textRadius * sin(angleInRad))
-                    val degreeText = degree.toString()
-                    val textPaint = android.graphics.Paint().apply {
-                        color = android.graphics.Color.WHITE
-                        textSize = 28f
-                        textAlign = android.graphics.Paint.Align.CENTER
-                        typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    }
-                    val textWidth = textPaint.measureText(degreeText)
-
-
-                    drawContext.canvas.nativeCanvas.rotate(
-                        degree.toFloat() - currentDegree.toFloat(),
-                        textX,
-                        textY
-                    )
-                    drawContext.canvas.nativeCanvas.drawText(
-                        degreeText,
-                        textX - textWidth / 2,
-                        textY + 10f,
-                        textPaint
-                    )
-                    drawContext.canvas.nativeCanvas.rotate(
-                        -(degree.toFloat() - currentDegree.toFloat()),
-                        textX,
-                        textY
-                    )
+                    drawDegreeText(degree.toString(), angleInRad, centerX, centerY, radius)
                 }
             }
 
+
             val cardinalDirections = listOf("N", "E", "S", "W")
             for ((index, direction) in cardinalDirections.withIndex()) {
-                val angleInRad = Math.toRadians((index * 90).toDouble() - currentDegree).toFloat()
-                val textRadius = radius * 0.8f // Position further from the center
+                val angleInRad = Math.toRadians((index * 90).toDouble() - correctedDegree).toFloat()
+                val textRadius = radius * 0.8f
                 val textX = centerX + (textRadius * cos(angleInRad))
                 val textY = centerY + (textRadius * sin(angleInRad))
 
@@ -159,25 +137,36 @@ fun CompassScreen(currentDegree: Float) {
                     textY,
                     android.graphics.Paint().apply {
                         color = android.graphics.Color.WHITE
-                        textSize = 36f  // Larger font size
+                        textSize = 36f
                         textAlign = android.graphics.Paint.Align.CENTER
                         typeface = android.graphics.Typeface.DEFAULT_BOLD
                     }
                 )
             }
 
-            rotate(currentDegree) {
-                val needlePath = Path().apply {
-                    moveTo(centerX, centerY - radius * 0.6f)
-                    lineTo(centerX - 10f, centerY)
-                    lineTo(centerX + 10f, centerY)
-                    close()
-                }
+
+            rotate(-correctedDegree, pivot = Offset(centerX, centerY)) {
                 drawPath(
-                    path = needlePath,
+                    path = Path().apply {
+                        moveTo(centerX, centerY - radius * 0.5f)
+                        lineTo(centerX - 15f, centerY)
+                        lineTo(centerX + 15f, centerY)
+                        close()
+                    },
+                    color = Color.Red.copy(alpha = 0.3f)
+                )
+
+                drawPath(
+                    path = Path().apply {
+                        moveTo(centerX, centerY - radius * 0.6f)
+                        lineTo(centerX - 10f, centerY)
+                        lineTo(centerX + 10f, centerY)
+                        close()
+                    },
                     color = Color.Red
                 )
             }
+
 
             drawContext.canvas.nativeCanvas.drawText(
                 "${currentDegree.toInt()}°",
@@ -192,6 +181,44 @@ fun CompassScreen(currentDegree: Float) {
             )
         }
     }
+}
+
+
+
+private fun DrawScope.drawDegreeText(
+    degreeText: String,
+    angleInRad: Float,
+    centerX: Float,
+    centerY: Float,
+    radius: Float
+) {
+    val textRadius = radius * 0.7f
+    val textX = centerX + (textRadius * cos(angleInRad))
+    val textY = centerY + (textRadius * sin(angleInRad))
+    val textPaint = android.graphics.Paint().apply {
+        color = android.graphics.Color.WHITE
+        textSize = 28f
+        textAlign = android.graphics.Paint.Align.CENTER
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+    val textWidth = textPaint.measureText(degreeText)
+
+    drawContext.canvas.nativeCanvas.rotate(
+        Math.toDegrees(angleInRad.toDouble()).toFloat(),
+        textX,
+        textY
+    )
+    drawContext.canvas.nativeCanvas.drawText(
+        degreeText,
+        textX - textWidth / 2,
+        textY + 10f,
+        textPaint
+    )
+    drawContext.canvas.nativeCanvas.rotate(
+        -Math.toDegrees(angleInRad.toDouble()).toFloat(),
+        textX,
+        textY
+    )
 }
 
 @Composable
