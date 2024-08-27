@@ -8,34 +8,24 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
@@ -54,18 +44,28 @@ fun CompassApp() {
     val context = LocalContext.current
     var currentDegree by remember { mutableStateOf(0f) }
     var smoothCurrentDegree by remember { mutableStateOf(0f) }
+    val coroutineScope = rememberCoroutineScope()
+    val degreeAnimation = remember { Animatable(0f) }
+
     SensorListener(onDegreeChanged = { degree ->
         currentDegree = degree
+        coroutineScope.launch {
+            degreeAnimation.animateTo(
+                targetValue = degree,
+                animationSpec = tween(durationMillis = 500)
+            )
+        }
     })
 
     LaunchedEffect(currentDegree) {
-        smoothCurrentDegree = lowPassFilter(smoothCurrentDegree, currentDegree, 0.02f)
+        smoothCurrentDegree = lowPassFilter(smoothCurrentDegree, degreeAnimation.value, 0.1f)
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF222222))
+            .background(Color(0xFF000000)),
+        contentAlignment = Alignment.Center
     ) {
         CompassScreen(currentDegree = smoothCurrentDegree)
     }
@@ -74,6 +74,7 @@ fun CompassApp() {
 @Composable
 fun CompassScreen(currentDegree: Float) {
     val correctedDegree = currentDegree
+    val directionText = getDirectionFromDegree(correctedDegree.toInt())
 
     Box(
         modifier = Modifier
@@ -85,25 +86,24 @@ fun CompassScreen(currentDegree: Float) {
             modifier = Modifier
                 .fillMaxSize()
                 .aspectRatio(1f)
+                .rotate(-correctedDegree)
         ) {
             val centerX = size.width / 2
             val centerY = size.height / 2
             val radius = size.minDimension / 2
 
-
             drawCircle(
-                color = Color.LightGray,
+                color = Color(0xFF111111),
                 radius = radius,
-                style = Stroke(width = 4.dp.toPx())
+                style = Stroke(width = 8.dp.toPx())
             )
 
-
             for (degree in 0..359 step 5) {
-                val angleInRad = Math.toRadians(degree.toDouble() - correctedDegree).toFloat()
+                val angleInRad = Math.toRadians(degree.toDouble()).toFloat()
                 val lineLength = when {
-                    degree % 90 == 0 -> 0.2f
-                    degree % 30 == 0 -> 0.15f
-                    else -> 0.1f
+                    degree % 90 == 0 -> 0.25f
+                    degree % 30 == 0 -> 0.20f
+                    else -> 0.15f
                 }
 
                 val startX = centerX + (radius * (1 - lineLength)) * cos(angleInRad)
@@ -112,10 +112,10 @@ fun CompassScreen(currentDegree: Float) {
                 val endY = centerY + radius * sin(angleInRad)
 
                 drawLine(
-                    color = if (degree == correctedDegree.toInt()) Color.Red else Color.LightGray,
+                    color = if (degree == 0 || degree == 180) Color.Red else if (degree == 90 || degree == 270) Color.Red else Color.White.copy(alpha = 0.7f),
                     start = Offset(startX, startY),
                     end = Offset(endX, endY),
-                    strokeWidth = if (degree % 30 == 0) 2.dp.toPx() else 1.dp.toPx()
+                    strokeWidth = if (degree % 30 == 0) 3.dp.toPx() else 2.dp.toPx()
                 )
 
                 if (degree % 30 == 0) {
@@ -124,65 +124,60 @@ fun CompassScreen(currentDegree: Float) {
             }
 
 
-            val cardinalDirections = listOf("N", "E", "S", "W")
-            for ((index, direction) in cardinalDirections.withIndex()) {
-                val angleInRad = Math.toRadians((index * 90).toDouble() - correctedDegree).toFloat()
-                val textRadius = radius * 0.8f
-                val textX = centerX + (textRadius * cos(angleInRad))
-                val textY = centerY + (textRadius * sin(angleInRad))
-
-                drawContext.canvas.nativeCanvas.drawText(
-                    direction,
-                    textX,
-                    textY,
-                    android.graphics.Paint().apply {
-                        color = android.graphics.Color.WHITE
-                        textSize = 36f
-                        textAlign = android.graphics.Paint.Align.CENTER
-                        typeface = android.graphics.Typeface.DEFAULT_BOLD
-                    }
-                )
-            }
-
-
-            rotate(-correctedDegree, pivot = Offset(centerX, centerY)) {
-                drawPath(
-                    path = Path().apply {
-                        moveTo(centerX, centerY - radius * 0.5f)
-                        lineTo(centerX - 15f, centerY)
-                        lineTo(centerX + 15f, centerY)
-                        close()
-                    },
-                    color = Color.Red.copy(alpha = 0.3f)
-                )
-
-                drawPath(
-                    path = Path().apply {
-                        moveTo(centerX, centerY - radius * 0.6f)
-                        lineTo(centerX - 10f, centerY)
-                        lineTo(centerX + 10f, centerY)
-                        close()
-                    },
-                    color = Color.Red
-                )
-            }
+            drawArrow(centerX, centerY - radius * 0.65f, correctedDegree)
 
 
             drawContext.canvas.nativeCanvas.drawText(
-                "${currentDegree.toInt()}°",
+                "${correctedDegree.toInt()}°",
                 centerX,
-                centerY - radius * 0.3f,
+                centerY,
                 android.graphics.Paint().apply {
-                    color = android.graphics.Color.WHITE
-                    textSize = 50f
+                    color = android.graphics.Color.RED
+                    textSize = 80f
                     textAlign = android.graphics.Paint.Align.CENTER
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    typeface = android.graphics.Typeface.create(
+                        "sans-serif-light",
+                        android.graphics.Typeface.BOLD
+                    )
+                }
+            )
+
+            drawContext.canvas.nativeCanvas.drawText(
+                directionText,
+                centerX,
+                centerY + 50f,
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.RED
+                    textSize = 45f
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    typeface = android.graphics.Typeface.create(
+                        "sans-serif-light",
+                        android.graphics.Typeface.NORMAL
+                    )
                 }
             )
         }
     }
 }
 
+private fun DrawScope.drawArrow(centerX: Float, centerY: Float, angle: Float) {
+    val arrowSize = 30.dp.toPx()
+    val arrowPath = android.graphics.Path().apply {
+        moveTo(0f, 0f)
+        lineTo(-arrowSize / 2, arrowSize)
+        lineTo(arrowSize / 2, arrowSize)
+        close()
+    }
+
+    drawContext.canvas.nativeCanvas.save()
+    drawContext.canvas.nativeCanvas.translate(centerX, centerY)
+    drawContext.canvas.nativeCanvas.rotate(angle)
+    drawContext.canvas.nativeCanvas.drawPath(arrowPath, android.graphics.Paint().apply {
+        color = android.graphics.Color.WHITE
+        style = android.graphics.Paint.Style.FILL
+    })
+    drawContext.canvas.nativeCanvas.restore()
+}
 
 
 private fun DrawScope.drawDegreeText(
@@ -197,7 +192,7 @@ private fun DrawScope.drawDegreeText(
     val textY = centerY + (textRadius * sin(angleInRad))
     val textPaint = android.graphics.Paint().apply {
         color = android.graphics.Color.WHITE
-        textSize = 28f
+        textSize = 35f
         textAlign = android.graphics.Paint.Align.CENTER
         typeface = android.graphics.Typeface.DEFAULT_BOLD
     }
@@ -221,9 +216,9 @@ private fun DrawScope.drawDegreeText(
     )
 }
 
+
 @Composable
 fun SensorListener(
-    coroutineScope: CoroutineScope = rememberCoroutineScope(),
     onDegreeChanged: (Float) -> Unit
 ) {
     val context = LocalContext.current
@@ -248,29 +243,21 @@ fun SensorListener(
                         System.arraycopy(event.values, 0, geomagnetic, 0, event.values.size)
                     }
                 }
-                val rotationMatrix = FloatArray(9)
-                if (SensorManager.getRotationMatrix(
-                        rotationMatrix,
-                        null,
-                        gravity,
-                        geomagnetic
-                    )
-                ) {
+                val R = FloatArray(9)
+                val I = FloatArray(9)
+                if (SensorManager.getRotationMatrix(R, I, gravity, geomagnetic)) {
                     val orientation = FloatArray(3)
-                    SensorManager.getOrientation(rotationMatrix, orientation)
+                    SensorManager.getOrientation(R, orientation)
                     val azimuthDeg =
                         (Math.toDegrees(orientation[0].toDouble()) + 360).toFloat() % 360
-                    coroutineScope.launch(Dispatchers.Main) {
-                        onDegreeChanged(azimuthDeg)
-                    }
+                    onDegreeChanged(azimuthDeg)
                 }
             }
 
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-
-            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
     }
+
     DisposableEffect(sensorManager) {
         sensorManager.registerListener(
             sensorEventListener,
@@ -288,21 +275,20 @@ fun SensorListener(
     }
 }
 
-
 fun lowPassFilter(previousValue: Float, currentValue: Float, alpha: Float): Float {
     return previousValue + alpha * (currentValue - previousValue)
 }
 
 fun getDirectionFromDegree(degree: Int): String {
     return when (degree) {
-        in 0..22 -> "N"
+        in 0..22 -> "North"
         in 23..67 -> "NE"
-        in 68..112 -> "E"
+        in 68..112 -> "East"
         in 113..157 -> "SE"
-        in 158..202 -> "S"
+        in 158..202 -> "South"
         in 203..247 -> "SW"
-        in 248..292 -> "W"
+        in 248..292 -> "West"
         in 293..337 -> "NW"
-        else -> "N"
+        else -> "North"
     }
 }
