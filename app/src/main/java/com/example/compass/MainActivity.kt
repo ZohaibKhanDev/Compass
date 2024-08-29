@@ -30,9 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -44,6 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import java.lang.Math.toRadians
+import kotlin.math.cos
+import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,7 +61,6 @@ fun CompassScreen() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-
     DisposableEffect(key1 = lifecycleOwner) {
         val sensorEventListener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
@@ -69,14 +69,10 @@ fun CompassScreen() {
                     angle = alpha * angle + (1 - alpha) * event.values[0]
                 }
             }
-
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-
-            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) { }
         }
         val sensorManager = context.getSystemService(SENSOR_SERVICE) as SensorManager
         val orientationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION)
-
         val lifecycleObserver = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 orientationSensor?.let {
@@ -90,14 +86,12 @@ fun CompassScreen() {
                 sensorManager.unregisterListener(sensorEventListener)
             }
         }
-
         lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
             sensorManager.unregisterListener(sensorEventListener)
         }
     }
-
 
     Box(
         modifier = Modifier
@@ -111,7 +105,7 @@ fun CompassScreen() {
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "12:04",
+                text = "00:00",
                 color = Color.White,
                 fontSize = 16.sp,
                 modifier = Modifier.padding(top = 20.dp)
@@ -140,21 +134,41 @@ fun CompassScreen() {
     }
 }
 
-
 @Composable
 fun Compass(angle: Float) {
+    val primaryAngle = (angle + 360).mod(360.0).toFloat()
+    var directionText by remember { mutableStateOf("North") }
+
+
+    when (primaryAngle) {
+        in 22.5..67.5 -> directionText = "Northeast"
+        in 67.5..112.5 -> directionText = "East"
+        in 112.5..157.5 -> directionText = "Southeast"
+        in 157.5..202.5 -> directionText = "South"
+        in 202.5..247.5 -> directionText = "Southwest"
+        in 247.5..292.5 -> directionText = "West"
+        in 292.5..337.5 -> directionText = "Northwest"
+        else -> directionText = "North"
+    }
+
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(300.dp)
             .graphicsLayer { rotationZ = -angle }
-            .background(Color.DarkGray, shape = CircleShape)
+            .background(Color.Black, shape = CircleShape)
     ) {
-
         Canvas(modifier = Modifier.fillMaxSize()) {
             val centerX = size.width / 2
             val centerY = size.height / 2
             val radius = size.minDimension / 2
+
+
+            drawCircle(
+                color = Color.DarkGray,
+                radius = radius,
+                center = Offset(centerX, centerY)
+            )
 
 
             drawCircle(
@@ -164,35 +178,38 @@ fun Compass(angle: Float) {
                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx())
             )
 
+            for (i in 0..359 step 5) {
+                val angleInRad = toRadians(i.toDouble())
+                val lineLength = if (i % 30 == 0) 24.dp.toPx() else 12.dp.toPx()
+                val strokeWidth = if (i % 30 == 0) 3.dp.toPx() else 2.dp.toPx()
 
-            for (i in 0..359 step 10) {
-                val angleInRad = Math.toRadians(i.toDouble())
-                val lineLength = if (i % 30 == 0) 16.dp.toPx() else 8.dp.toPx()
-                val startX = centerX + (radius - lineLength) * kotlin.math.cos(angleInRad)
-                val startY = centerY + (radius - lineLength) * kotlin.math.sin(angleInRad)
-                val endX = centerX + radius * kotlin.math.cos(angleInRad)
-                val endY = centerY + radius * kotlin.math.sin(angleInRad)
+                val startX = centerX + (radius - lineLength) * cos(angleInRad)
+                val startY = centerY + (radius - lineLength) * sin(angleInRad)
+                val endX = centerX + radius * cos(angleInRad)
+                val endY = centerY + radius * sin(angleInRad)
 
                 drawLine(
-                    color = Color.White,
+                    color = if (isAngleBetween(i.toFloat(), primaryAngle, angleTolerance = 2.5f)) Color.Red else Color.White,
                     start = Offset(startX.toFloat(), startY.toFloat()),
                     end = Offset(endX.toFloat(), endY.toFloat()),
-                    strokeWidth = 2.dp.toPx()
+                    strokeWidth = strokeWidth
                 )
 
 
                 if (i % 30 == 0) {
-                    val textRadius = radius - 30.dp.toPx()
-                    val textX = centerX + textRadius * kotlin.math.cos(angleInRad) - 10.dp.toPx()
-                    val textY = centerY + textRadius * kotlin.math.sin(angleInRad) + 8.dp.toPx()
+                    val textRadius = radius - 60.dp.toPx()
+                    val textX = centerX + textRadius * cos(angleInRad) - 15.dp.toPx()
+                    val textY = centerY + textRadius * sin(angleInRad) + 10.dp.toPx()
+
+
                     drawContext.canvas.nativeCanvas.drawText(
-                        "$i°",
+                        getDirectionText(i),
                         textX.toFloat(),
                         textY.toFloat(),
                         android.graphics.Paint().apply {
                             textSize = 16.sp.toPx()
                             textAlign = android.graphics.Paint.Align.CENTER
-                            color = Color.White.toArgb()
+                            color = if (isAngleBetween(i.toFloat(), primaryAngle, angleTolerance = 15f)) Color.Red.toArgb() else Color.White.toArgb()
                         }
                     )
                 }
@@ -202,37 +219,55 @@ fun Compass(angle: Float) {
 
         Canvas(
             modifier = Modifier
-                .size(12.dp, 90.dp)
+                .size(8.dp, 16.dp)
+                .graphicsLayer { rotationZ = 180f },
         ) {
             val path = Path().apply {
                 moveTo(size.width / 2, 0f)
-                lineTo(0f, size.height * 0.2f)
-                lineTo(size.width / 2, size.height * 0.8f)
-                lineTo(size.width, size.height * 0.2f)
+                lineTo(0f, size.height)
+                lineTo(size.width, size.height)
                 close()
             }
             drawPath(
                 path = path,
-                color = Color.Red,
+                color = Color.Red
             )
         }
 
-
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "North",
-                color = Color.White,
-                fontSize = 24.sp,
-                textAlign = TextAlign.Center
-            )
 
             Text(
-                text = "${angle.toInt()}°",
+                text = "${primaryAngle.toInt()}°",
                 color = Color.White,
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
+
+            Text(
+                text = directionText,
+                color = Color.White,
+                fontSize = 20.sp,
+                textAlign = TextAlign.Center
+            )
         }
+    }
+}
+
+
+fun isAngleBetween(target: Float, angle: Float, angleTolerance: Float): Boolean {
+    val minAngle = (angle - angleTolerance + 360) % 360
+    val maxAngle = (angle + angleTolerance) % 360
+    return (target >= minAngle && target <= maxAngle) ||
+            (maxAngle < minAngle && (target >= minAngle || target <= maxAngle))
+}
+
+fun getDirectionText(angle: Int): String {
+    return when (angle) {
+        0 -> "North"
+        90 -> "East"
+        180 -> "South"
+        270 -> "West"
+        else -> ""
     }
 }
