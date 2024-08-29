@@ -15,12 +15,12 @@
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=8DPFOFROZTTSEQGM" />
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\18bsc\.android\avd\Pixel_6a_API_VanillaIceCream.avd" />
               </handle>
             </Target>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\18bsc\.android\avd\Pixel_6a_API_VanillaIceCream.avd" />
+                <DeviceId pluginId="PhysicalDevice" identifier="serial=8DPFOFROZTTSEQGM" />
               </handle>
             </Target>
           </targets>

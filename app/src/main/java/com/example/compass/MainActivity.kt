@@ -12,8 +12,18 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -23,12 +33,11 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,6 +69,7 @@ fun CompassApp() {
     LaunchedEffect(currentDegree) {
         smoothCurrentDegree = lowPassFilter(smoothCurrentDegree, degreeAnimation.value, 0.1f)
     }
+
 
     Box(
         modifier = Modifier
@@ -111,8 +121,21 @@ fun CompassScreen(currentDegree: Float) {
                 val endX = centerX + radius * cos(angleInRad)
                 val endY = centerY + radius * sin(angleInRad)
 
+
+                val isNorth =
+                    (degree == 0 && correctedDegree in 337.5..360.0) || (degree == 0 && correctedDegree in 0.0..22.5)
+                val lineColor = if (isNorth) {
+                    Color.Red
+                } else if (degree % 90 == 0) {
+                    Color.Red
+                } else if (degree % 30 == 0) {
+                    Color.White
+                } else {
+                    Color.White.copy(alpha = 0.7f)
+                }
+
                 drawLine(
-                    color = if (degree == 0 || degree == 180) Color.Red else if (degree == 90 || degree == 270) Color.Red else Color.White.copy(alpha = 0.7f),
+                    color = lineColor,
                     start = Offset(startX, startY),
                     end = Offset(endX, endY),
                     strokeWidth = if (degree % 30 == 0) 3.dp.toPx() else 2.dp.toPx()
@@ -124,8 +147,9 @@ fun CompassScreen(currentDegree: Float) {
             }
 
 
-            drawArrow(centerX, centerY - radius * 0.65f, correctedDegree)
-
+            if (correctedDegree in 337.5..360.0 || correctedDegree in 0.0..22.5) {
+                drawArrow(centerX, centerY - radius + 40.dp.toPx())
+            }
 
             drawContext.canvas.nativeCanvas.drawText(
                 "${correctedDegree.toInt()}°",
@@ -160,7 +184,8 @@ fun CompassScreen(currentDegree: Float) {
     }
 }
 
-private fun DrawScope.drawArrow(centerX: Float, centerY: Float, angle: Float) {
+
+private fun DrawScope.drawArrow(centerX: Float, centerY: Float) {
     val arrowSize = 30.dp.toPx()
     val arrowPath = android.graphics.Path().apply {
         moveTo(0f, 0f)
@@ -171,14 +196,12 @@ private fun DrawScope.drawArrow(centerX: Float, centerY: Float, angle: Float) {
 
     drawContext.canvas.nativeCanvas.save()
     drawContext.canvas.nativeCanvas.translate(centerX, centerY)
-    drawContext.canvas.nativeCanvas.rotate(angle)
     drawContext.canvas.nativeCanvas.drawPath(arrowPath, android.graphics.Paint().apply {
         color = android.graphics.Color.WHITE
         style = android.graphics.Paint.Style.FILL
     })
     drawContext.canvas.nativeCanvas.restore()
 }
-
 
 private fun DrawScope.drawDegreeText(
     degreeText: String,
