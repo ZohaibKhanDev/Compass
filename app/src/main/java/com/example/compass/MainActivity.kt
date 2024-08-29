@@ -30,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -94,6 +93,7 @@ fun CompassScreen() {
         }
     }
 
+    // Set the background color of the entire screen to black
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -156,19 +156,12 @@ fun Compass(angle: Float) {
         modifier = Modifier
             .size(300.dp)
             .graphicsLayer { rotationZ = -angle }
-            .background(Color.Black, shape = CircleShape)
+            .background(Color.Black, shape = CircleShape) // Set the background of the circle to black
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val centerX = size.width / 2
             val centerY = size.height / 2
             val radius = size.minDimension / 2
-
-            // Draw the circle
-            drawCircle(
-                color = Color.DarkGray,
-                radius = radius,
-                center = Offset(centerX, centerY)
-            )
 
             // Draw the outer circle
             drawCircle(
@@ -182,21 +175,20 @@ fun Compass(angle: Float) {
             for (i in 0..359 step 5) {
                 val angleInRad = toRadians(i.toDouble())
                 val lineLength =
-                    if (i % 30 == 0) 18.dp.toPx() else 8.dp.toPx() // Adjusted line lengths
+                    if (i % 30 == 0) 18.dp.toPx() else 8.dp.toPx()
                 val strokeWidth = if (i % 30 == 0) 3.dp.toPx() else 2.dp.toPx()
 
-                val startX = centerX + (radius - lineLength) * cos(angleInRad)
-                val startY = centerY + (radius - lineLength) * sin(angleInRad)
-                val endX = centerX + radius * cos(angleInRad)
-                val endY = centerY + radius * sin(angleInRad)
+                // 1 dp padding between lines and circle
+                val startRadius = radius - lineLength - 1.dp.toPx()
+                val endRadius = radius - 1.dp.toPx()
+
+                val startX = centerX + startRadius * cos(angleInRad)
+                val startY = centerY + startRadius * sin(angleInRad)
+                val endX = centerX + endRadius * cos(angleInRad)
+                val endY = centerY + endRadius * sin(angleInRad)
 
                 drawLine(
-                    color = if (isAngleBetween(
-                            i.toFloat(),
-                            primaryAngle,
-                            angleTolerance = 2.5f
-                        )
-                    ) Color.Red else Color.White,
+                    color = if (isAngleBetween(i.toFloat(), primaryAngle, angleTolerance = 2.5f)) Color.Red else Color.White,
                     start = Offset(startX.toFloat(), startY.toFloat()),
                     end = Offset(endX.toFloat(), endY.toFloat()),
                     strokeWidth = strokeWidth
@@ -204,7 +196,7 @@ fun Compass(angle: Float) {
 
                 // Add degree text for major markings
                 if (i % 30 == 0) {
-                    val textRadius = radius - 30.dp.toPx() // Adjust text position
+                    val textRadius = radius - 34.dp.toPx() // Adjusted for padding
                     val textX = centerX + textRadius * cos(angleInRad) - 10.dp.toPx()
                     val textY = centerY + textRadius * sin(angleInRad) + 8.dp.toPx()
 
@@ -213,36 +205,13 @@ fun Compass(angle: Float) {
                         textX.toFloat(),
                         textY.toFloat(),
                         android.graphics.Paint().apply {
-                            textSize = 14.sp.toPx() // Smaller text size
+                            textSize = 14.sp.toPx()
                             textAlign = android.graphics.Paint.Align.CENTER
-                            color = if (isAngleBetween(
-                                    i.toFloat(),
-                                    primaryAngle,
-                                    angleTolerance = 15f
-                                )
-                            ) Color.Red.toArgb() else Color.White.toArgb()
+                            color = if (isAngleBetween(i.toFloat(), primaryAngle, angleTolerance = 15f)) Color.Red.toArgb() else Color.White.toArgb()
                         }
                     )
                 }
             }
-        }
-
-        // North Arrow (Triangle)
-        Canvas(
-            modifier = Modifier
-                .size(8.dp, 16.dp) // Adjusted arrow size
-                .graphicsLayer { rotationZ = 180f },
-        ) {
-            val path = Path().apply {
-                moveTo(size.width / 2, 0f)
-                lineTo(0f, size.height)
-                lineTo(size.width, size.height)
-                close()
-            }
-            drawPath(
-                path = path,
-                color = Color.Red
-            )
         }
 
         // Center Text
@@ -264,20 +233,9 @@ fun Compass(angle: Float) {
     }
 }
 
-// Function to determine if an angle is within a certain range
 fun isAngleBetween(target: Float, angle: Float, angleTolerance: Float): Boolean {
     val minAngle = (angle - angleTolerance + 360) % 360
     val maxAngle = (angle + angleTolerance) % 360
     return (target >= minAngle && target <= maxAngle) ||
             (maxAngle < minAngle && (target >= minAngle || target <= maxAngle))
-}
-
-fun getDirectionText(angle: Int): String {
-    return when (angle) {
-        0 -> "North"
-        90 -> "East"
-        180 -> "South"
-        270 -> "West"
-        else -> ""
-    }
 }
