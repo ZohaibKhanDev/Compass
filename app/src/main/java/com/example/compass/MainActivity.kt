@@ -127,7 +127,6 @@ fun CompassApp() {
     }
 }
 
-
 @Composable
 fun CompassScreen() {
     val context = LocalContext.current
