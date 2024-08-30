@@ -47,7 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import java.lang.Math.toRadians
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -135,6 +135,8 @@ fun CompassScreen() {
     val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
 
     var azimuth by remember { mutableStateOf(0f) }
+    val lowPassFilterAlpha = 0.1f
+
     val sensorEventListener = remember {
         object : SensorEventListener {
             var gravity = FloatArray(3)
@@ -158,7 +160,8 @@ fun CompassScreen() {
                 ) {
                     val orientation = FloatArray(3)
                     SensorManager.getOrientation(rotationMatrix, orientation)
-                    azimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
+                    val newAzimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
+                    azimuth = lowPassFilter(azimuth, newAzimuth, lowPassFilterAlpha)
                 }
             }
 
@@ -183,6 +186,9 @@ fun CompassScreen() {
     }
 
     Compass(angle = azimuth)
+}
+fun lowPassFilter(previousValue: Float, currentValue: Float, alpha: Float): Float {
+    return previousValue + alpha * (currentValue - previousValue)
 }
 
 @Composable
@@ -242,7 +248,7 @@ fun CompassCanvas(primaryAngle: Float) {
         )
 
         for (i in 0..359 step 5) {
-            val angleInRad = toRadians(i.toDouble())
+            val angleInRad = Math.toRadians(i.toDouble())
             val lineLength = if (i % 30 == 0) 18.dp.toPx() else 8.dp.toPx()
             val strokeWidth = if (i % 30 == 0) 3.dp.toPx() else 2.dp.toPx()
 
@@ -292,6 +298,6 @@ fun CompassCanvas(primaryAngle: Float) {
 }
 
 fun isAngleBetween(angle1: Float, angle2: Float, angleTolerance: Float): Boolean {
-    val diff = Math.abs(angle1 - angle2)
+    val diff = abs(angle1 - angle2)
     return diff <= angleTolerance || diff >= 360 - angleTolerance
 }
