@@ -113,7 +113,6 @@ fun CompassScreen() {
 
             Compass(angle)
 
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -134,6 +133,7 @@ fun CompassScreen() {
         }
     }
 }
+
 
 @Composable
 fun Compass(angle: Float) {
@@ -162,6 +162,7 @@ fun Compass(angle: Float) {
             )
     ) {
         CompassCanvas(primaryAngle)
+
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
