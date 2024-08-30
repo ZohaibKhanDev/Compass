@@ -163,7 +163,6 @@ fun Compass(angle: Float) {
     ) {
         CompassCanvas(primaryAngle)
 
-
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "${primaryAngle.toInt()}°",
@@ -181,6 +180,7 @@ fun Compass(angle: Float) {
         }
     }
 }
+
 
 @Composable
 fun CompassCanvas(primaryAngle: Float) {
