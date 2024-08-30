@@ -194,7 +194,7 @@ fun Compass(angle: Float) {
                     strokeWidth = strokeWidth
                 )
 
-                // Add degree text for major markings
+
                 if (i % 30 == 0) {
                     val textRadius = radius - 34.dp.toPx() // Adjusted for padding
                     val textX = centerX + textRadius * cos(angleInRad) - 10.dp.toPx()
@@ -214,7 +214,7 @@ fun Compass(angle: Float) {
             }
         }
 
-        // Center Text
+
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "${primaryAngle.toInt()}°",
