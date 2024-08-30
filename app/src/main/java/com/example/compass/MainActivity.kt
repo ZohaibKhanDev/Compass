@@ -252,3 +252,4 @@ fun isAngleBetween(angle1: Float, angle2: Float, angleTolerance: Float): Boolean
     val diff = Math.abs(angle1 - angle2)
     return diff < angleTolerance || diff > 360 - angleTolerance
 }
+
