@@ -105,7 +105,7 @@ fun CompassScreen() {
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "00:00",
+                text = "",
                 color = Color.White,
                 fontSize = 16.sp,
                 modifier = Modifier.padding(top = 20.dp)
@@ -158,7 +158,7 @@ fun Compass(angle: Float) {
             .background(
                 Color.Black,
                 shape = CircleShape
-            ) // Set the background of the circle to black
+            )
     ) {
         CompassCanvas(primaryAngle)
 
@@ -187,15 +187,15 @@ fun CompassCanvas(primaryAngle: Float) {
         val centerY = size.height / 2
         val radius = size.minDimension / 2
 
-        // Draw the outer circle
+
         drawCircle(
-            color = Color.White,
+            color = Color.DarkGray,
             radius = radius,
             center = Offset(centerX, centerY),
             style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx())
         )
 
-        // Draw degree markings and direction labels
+
         for (i in 0..359 step 5) {
             val angleInRad = toRadians(i.toDouble())
             val lineLength = if (i % 30 == 0) 18.dp.toPx() else 8.dp.toPx()
@@ -215,14 +215,14 @@ fun CompassCanvas(primaryAngle: Float) {
                         primaryAngle,
                         angleTolerance = 2.5f
                     )
-                ) Color.Red else Color.White,
+                ) Color.Red else Color.DarkGray,
                 start = Offset(startX.toFloat(), startY.toFloat()),
                 end = Offset(endX.toFloat(), endY.toFloat()),
                 strokeWidth = strokeWidth
             )
 
             if (i % 30 == 0) {
-                val textRadius = radius - 34.dp.toPx() // Adjusted for padding
+                val textRadius = radius - 34.dp.toPx()
                 val textX = centerX + textRadius * cos(angleInRad) - 10.dp.toPx()
                 val textY = centerY + textRadius * sin(angleInRad) + 8.dp.toPx()
 
@@ -238,7 +238,7 @@ fun CompassCanvas(primaryAngle: Float) {
                                 primaryAngle,
                                 angleTolerance = 15f
                             )
-                        ) Color.Red.toArgb() else Color.White.toArgb()
+                        ) Color.Red.toArgb() else Color.LightGray.toArgb()
                     }
                 )
             }
