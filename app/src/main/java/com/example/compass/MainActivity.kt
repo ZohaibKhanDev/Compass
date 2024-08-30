@@ -1,21 +1,27 @@
 package com.example.compass
 
+import android.Manifest
+import android.content.Context
 import android.content.Context.SENSOR_SERVICE
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.location.LocationManager
 import android.os.Bundle
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -39,8 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.core.content.ContextCompat
 import java.lang.Math.toRadians
 import kotlin.math.cos
 import kotlin.math.sin
@@ -49,91 +54,137 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            CompassScreen()
+            CompassApp()
         }
     }
 }
 
 @Composable
-fun CompassScreen() {
-    var angle by remember { mutableStateOf(0f) }
+fun CompassApp() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val locationPermission = Manifest.permission.ACCESS_FINE_LOCATION
+    var hasLocationPermission by remember { mutableStateOf(false) }
+    var isGpsEnabled by remember { mutableStateOf(false) }
 
-    DisposableEffect(key1 = lifecycleOwner) {
-        val sensorEventListener = object : SensorEventListener {
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasLocationPermission = isGranted
+        if (isGranted) {
+            val locationManager =
+                context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        } else {
+            Toast.makeText(
+                context,
+                "Location permission is required to use the compass",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                locationPermission
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            hasLocationPermission = true
+            val locationManager =
+                context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        } else {
+            launcher.launch(locationPermission)
+        }
+        onDispose { }
+    }
+
+    if (hasLocationPermission) {
+        if (isGpsEnabled) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                CompassScreen()
+            }
+        } else {
+            Toast.makeText(context, "Please enable GPS", Toast.LENGTH_SHORT).show()
+            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+        }
+    } else {
+        Text(
+            text = "Location permission is required to use the compass",
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .padding(16.dp),
+            color = Color.White,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+
+@Composable
+fun CompassScreen() {
+    val context = LocalContext.current
+    val sensorManager = context.getSystemService(SENSOR_SERVICE) as SensorManager
+    val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+
+    var azimuth by remember { mutableStateOf(0f) }
+    val sensorEventListener = remember {
+        object : SensorEventListener {
+            var gravity = FloatArray(3)
+            var geomagnetic = FloatArray(3)
+
             override fun onSensorChanged(event: SensorEvent?) {
-                event?.let {
-                    val alpha = 0.9f
-                    angle = alpha * angle + (1 - alpha) * event.values[0]
+                if (event == null) return
+                when (event.sensor.type) {
+                    Sensor.TYPE_ACCELEROMETER -> gravity = event.values.clone()
+                    Sensor.TYPE_MAGNETIC_FIELD -> geomagnetic = event.values.clone()
+                }
+
+                val rotationMatrix = FloatArray(9)
+                val inclinationMatrix = FloatArray(9)
+                if (SensorManager.getRotationMatrix(
+                        rotationMatrix,
+                        inclinationMatrix,
+                        gravity,
+                        geomagnetic
+                    )
+                ) {
+                    val orientation = FloatArray(3)
+                    SensorManager.getOrientation(rotationMatrix, orientation)
+                    azimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
                 }
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
-        val sensorManager = context.getSystemService(SENSOR_SERVICE) as SensorManager
-        val orientationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION)
-        val lifecycleObserver = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                orientationSensor?.let {
-                    sensorManager.registerListener(
-                        sensorEventListener,
-                        it,
-                        SensorManager.SENSOR_DELAY_GAME
-                    )
-                }
-            } else if (event == Lifecycle.Event.ON_PAUSE) {
-                sensorManager.unregisterListener(sensorEventListener)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+    }
+
+    DisposableEffect(sensorManager) {
+        sensorManager.registerListener(
+            sensorEventListener,
+            accelerometer,
+            SensorManager.SENSOR_DELAY_UI
+        )
+        sensorManager.registerListener(
+            sensorEventListener,
+            magnetometer,
+            SensorManager.SENSOR_DELAY_UI
+        )
         onDispose {
-            lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
             sensorManager.unregisterListener(sensorEventListener)
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "",
-                color = Color.White,
-                fontSize = 16.sp,
-                modifier = Modifier.padding(top = 20.dp)
-            )
-
-            Compass(angle)
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "NL",
-                    color = Color.Gray,
-                    fontSize = 16.sp
-                )
-                Text(
-                    text = "EL",
-                    color = Color.Gray,
-                    fontSize = 16.sp
-                )
-            }
-        }
-    }
+    Compass(angle = azimuth)
 }
-
 
 @Composable
 fun Compass(angle: Float) {
@@ -156,13 +207,9 @@ fun Compass(angle: Float) {
         modifier = Modifier
             .size(300.dp)
             .graphicsLayer { rotationZ = -angle }
-            .background(
-                Color.Black,
-                shape = CircleShape
-            )
+            .background(Color.Black, shape = CircleShape)
     ) {
         CompassCanvas(primaryAngle)
-
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "${primaryAngle.toInt()}°",
@@ -181,7 +228,6 @@ fun Compass(angle: Float) {
     }
 }
 
-
 @Composable
 fun CompassCanvas(primaryAngle: Float) {
     Canvas(modifier = Modifier.fillMaxSize()) {
@@ -189,14 +235,12 @@ fun CompassCanvas(primaryAngle: Float) {
         val centerY = size.height / 2
         val radius = size.minDimension / 2
 
-
         drawCircle(
             color = Color.DarkGray,
             radius = radius,
             center = Offset(centerX, centerY),
             style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx())
         )
-
 
         for (i in 0..359 step 5) {
             val angleInRad = toRadians(i.toDouble())
@@ -248,8 +292,7 @@ fun CompassCanvas(primaryAngle: Float) {
     }
 }
 
-
 fun isAngleBetween(angle1: Float, angle2: Float, angleTolerance: Float): Boolean {
     val diff = Math.abs(angle1 - angle2)
-    return diff < angleTolerance || diff > 360 - angleTolerance
+    return diff <= angleTolerance || diff >= 360 - angleTolerance
 }
