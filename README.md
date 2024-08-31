@@ -1,9 +1,9 @@
 # Compass
 ## Overview
-
+ 
 ## 🚀 Key Features
 - ** Real-Time Directional Data **
-- ** Modern UI Design ** 
+- ** Modern UI Design **
 - ** Location-Based Features **
 - ** Open Source **
 - ** Calibration Support **
